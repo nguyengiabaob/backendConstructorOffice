@@ -29,6 +29,6 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "start": "yarn install && npx ts-node src/app.ts"
+    "start": "npm install && npx ts-node src/app.ts"
   }
 }
