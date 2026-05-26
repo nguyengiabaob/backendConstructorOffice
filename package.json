@@ -29,6 +29,14 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "start": "npm install && npx ts-node src/app.ts"
+    "build": "nest build",
+    "start": "node dist/main",
+    "start:prod": "node dist/main",
+    "start:dev": "nest start --watch",
+
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+
+    "deploy": "npm install && prisma generate && nest build"
   }
 }
