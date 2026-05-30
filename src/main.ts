@@ -4,6 +4,7 @@ import { AppModule } from "./App.module";
 
 const startServer = async () => {
   try {
+    console.log("APP STARTING...");
     const app = await NestFactory.create(AppModule);
     // Start the server
     app.setGlobalPrefix("api");
