@@ -29,7 +29,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "build": "prisma generate && nest build && node dist/src/main.js",
+    "build": "prisma generate && nest build",
     "start": "node dist/src/main.js",
     "start:prod": "node dist/src/main.js",
     "start:dev": "nest start --watch",
