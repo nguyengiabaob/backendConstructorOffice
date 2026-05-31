@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { NestFactory } from "@nestjs/core";
-import { AppModule } from "./App.module";
+import { AppModule } from "./src/App.module";
 
 const startServer = async () => {
   try {
