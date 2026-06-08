@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./src/App.module";
-
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 const startServer = async () => {
   try {
     console.log("APP STARTING...");
@@ -14,6 +14,14 @@ const startServer = async () => {
       methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
       credentials: true,
     });
+    const config = new DocumentBuilder()
+      .setTitle("ConstructorOffice API")
+      .setDescription("API documentation for project management")
+      .setVersion("1.0")
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup("docs", app, document);
 
     const port = 3000;
     app.listen(process.env.PORT || 3000, () => {
