@@ -23,9 +23,10 @@ const startServer = async () => {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup("docs", app, document);
 
-    const port = 3000;
-    app.listen(process.env.PORT || 3000, () => {
-      console.log(`Server is listening on port ${port}`);
+    const port = process.env.PORT ?? 3000;
+    app.listen(port, () => {
+      console.log("sdsadsa789", process.env.PORT);
+      // console.log(`Server is listening on port ${port}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
