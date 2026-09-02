@@ -1,4 +1,12 @@
-import { Controller, Get, Inject, Injectable, Post } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Inject,
+  Injectable,
+  Param,
+  ParseIntPipe,
+  Post,
+} from "@nestjs/common";
 
 import { IprojectService } from "../IService/IProjectService";
 import { PROJECT_SERVICE } from "../TokenServices/Project.Token";
@@ -14,6 +22,12 @@ export class ProjectController {
   async getProjects() {
     return this.projectService.getProjects();
   }
+
+  @Get("getProject/:id")
+  async getProject(@Param("id", ParseIntPipe) id: number) {
+    return this.projectService.getProject(id);
+  }
+
   @Post("createProject")
   async createProject(data: any) {
     return this.projectService.createProject(data);

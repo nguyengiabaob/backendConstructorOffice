@@ -1,6 +1,6 @@
 datasource db {
   provider = "mysql"
-   url    = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -8,16 +8,18 @@ generator client {
 }
 
 model User {
-  id    Int    @id @default(autoincrement())
-  name  String
-  email String
-  password  String?
-  ssoId  String?  @unique
-  createdAt DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  name              String
+  email             String
+  password          String?
+  ssoId             String?   @unique
+  createdAt         DateTime  @default(now())
   verificationToken String?
-  isActive Boolean?
-  setupTokenExpires BigInt? 
-  sessions  Session[]
+  isActive          Boolean?
+  setupTokenExpires BigInt?
+  sessions          Session[]
+  createdProjects   Project[] @relation("ProjectCreatedBy")
+  modifiedProjects  Project[] @relation("ProjectModifiedBy")
 }
 
 model Session {
@@ -28,21 +30,23 @@ model Session {
   ip           String?
   createdAt    DateTime @default(now())
   expiredAt    DateTime
-  user User @relation(fields: [userId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model Project {
-   id           String   @id @default(uuid())
-   name         String
-   createdAtv   DateTime @default(now())
-   modifiedDate DateTime @default(now())
-   employeeIds   String 
-   isDeleted    Boolean?
+  id             Int      @id @default(autoincrement())
+  name           String
+  description    String?
+  participantIds Json     @default("[]")
+  managerIds     Json     @default("[]")
+  createdBy      Int
+  modifiedBy     Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  creator        User     @relation("ProjectCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  modifier       User?    @relation("ProjectModifiedBy", fields: [modifiedBy], references: [id], onDelete: SetNull)
+  isDelete       Boolean  @default(false)
 
+  @@index([createdBy])
+  @@index([modifiedBy])
 }
-
-
-
-
-
-
