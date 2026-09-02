@@ -1,4 +1,7 @@
-export class ProjectServices {
+import { Injectable } from "@nestjs/common";
+import { IprojectService } from "../IService/IProjectService";
+@Injectable()
+export class ProjectServices implements IprojectService {
   constructor() {}
 
   public async getProjects() {
@@ -8,14 +11,12 @@ export class ProjectServices {
   public async getProject() {
     return {};
   }
-  public async createProject() {
+  public async createProject(data: any) {
     return {};
   }
 
-  public async updateProject() {
+  public async updateProject(data: any) {
     return {};
   }
-  public async deleteProject() {
-    return {};
-  }
+  public async deleteProject(id: string) {}
 }

@@ -1,6 +1,15 @@
 import { Request, Response } from "express";
 import { authServices } from "../services";
-import { Body, Controller, Injectable, Post, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Injectable,
+  Post,
+  Req,
+  Res,
+} from "@nestjs/common";
 interface AccessCodeDoc {
   code: number;
   expiresAt: number;
@@ -8,8 +17,6 @@ interface AccessCodeDoc {
 
 export interface LoginData {
   token: string;
-  uid: string;
-  email: string | null;
 }
 
 @Controller("auth")
@@ -94,41 +101,23 @@ export class authController {
     @Res() res: Response,
   ) {
     return this.authService.login(body.email, body.password, req, res);
-
-    // const snap = await db
-    //   .collection("users")
-    //   .where("username", "==", username)
-    //   .limit(1)
-    //   .get();
-
-    // if (snap.empty) {
-    //   return { message: "Invalid credentials" };
-    // }
-
-    // const user = snap.docs[0].data();
-
-    // const isMatchPassword = await bcrypt.compare(password, user.passwordHash);
-
-    // if (!isMatchPassword) {
-    //   return { message: "Password is wrong" };
-    // }
-
-    // const token = signAccessToken({
-    //   email: username,
-    // });
-
-    // const refreshToken = signRefreshToken({
-    //   email: username,
-    // });
-
-    // return res.json({
-    //   accessToken: token,
-    //   refreshToken: refreshToken,
-    //   role: user.role,
-    //   name: user.name,
-    //   authenticated: true,
-    // });
   }
+
+  @Post("google")
+  loginWithGoogle(
+    @Body() body: LoginData,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    return this.authService.loginWithGoogle(body.token, req, res);
+  }
+
+  @Post("logout")
+  @HttpCode(200)
+  logout(@Body() body: { refreshToken: string }) {
+    return this.authService.logout(body.refreshToken);
+  }
+
   @Post("resgisterUser")
   registerUser(@Req() req: Request, @Res() res: Response) {
     console.log("dsadsad", req);
@@ -144,5 +133,13 @@ export class authController {
   resetPassword(@Body() body: any, @Res() res: Response) {
     let email = body.email;
     return this.authService.forgetPassword(email, res);
+  }
+  @Get("currentUser")
+  getCurrentUser(@Req() req: Request, @Res() res: Response) {
+    const accessToken = req.headers.authorization?.split(" ")[1];
+    if (!accessToken) {
+      return res.status(401).json({ message: "Access token is missing" });
+    }
+    return this.authService.getCurrentUserLogin(accessToken, res);
   }
 }

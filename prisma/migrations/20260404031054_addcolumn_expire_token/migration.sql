@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `setupTokenExpires` INTEGER NULL;
+ALTER TABLE `User` ADD COLUMN `setupTokenExpires` INTEGER NULL;

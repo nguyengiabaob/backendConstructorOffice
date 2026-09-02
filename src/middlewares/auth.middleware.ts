@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwtAuth";
-import { admin } from "../firebase";
 
 export const authMiddleware = async (
   req: Request,

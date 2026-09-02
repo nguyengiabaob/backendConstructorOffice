@@ -5,5 +5,5 @@
 
 */
 -- AlterTable
-ALTER TABLE `user` DROP COLUMN `verificationCode`,
+ALTER TABLE `User` DROP COLUMN `verificationCode`,
     ADD COLUMN `verificationToken` VARCHAR(191) NULL;

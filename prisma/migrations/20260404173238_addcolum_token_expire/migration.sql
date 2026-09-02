@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `user` MODIFY `setupTokenExpires` BIGINT NULL;
+ALTER TABLE `User` MODIFY `setupTokenExpires` BIGINT NULL;

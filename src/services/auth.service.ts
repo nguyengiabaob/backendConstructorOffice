@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, Res } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../../shared/Database/prisma.service";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
@@ -6,7 +10,9 @@ import { Request, Response } from "express";
 
 import * as Crypto from "crypto";
 import { sendSetupPasswordEmail } from "./email.service";
-import { stat } from "fs";
+import { OAuth2Client, TokenPayload } from "google-auth-library";
+
+const googleOAuthClient = new OAuth2Client();
 
 @Injectable()
 export class authServices {
@@ -28,8 +34,6 @@ export class authServices {
     }
     if (!user.isActive)
       throw new Error("User is not active. Please set up your password.");
-    let passwordHash = (await bcrypt.hash(password, 10)).toString();
-
     const match = await bcrypt.compare(password, user.password ?? "");
     if (match === false) {
       return res.status(400).json({
@@ -37,6 +41,90 @@ export class authServices {
       });
     }
 
+    return this.createLoginSession(user, req, res);
+  }
+
+  async loginWithGoogle(idToken: string, req: Request, res: Response) {
+    if (!idToken) {
+      return res.status(400).json({ message: "Google ID token is required" });
+    }
+
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      return res
+        .status(500)
+        .json({ message: "Google OAuth is not configured" });
+    }
+
+    let googleAccount: TokenPayload | undefined;
+
+    try {
+      const ticket = await googleOAuthClient.verifyIdToken({
+        idToken,
+        audience: googleClientId,
+      });
+      googleAccount = ticket.getPayload();
+    } catch {
+      return res.status(401).json({ message: "Invalid Google ID token" });
+    }
+
+    if (
+      !googleAccount?.sub ||
+      !googleAccount.email ||
+      !googleAccount.email_verified
+    ) {
+      return res
+        .status(401)
+        .json({ message: "Google account email is not verified" });
+    }
+
+    const email = googleAccount.email.trim().toLowerCase();
+    let user = await this.prisma.user.findUnique({
+      where: { ssoId: googleAccount.sub },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.findFirst({ where: { email } });
+
+      if (user?.ssoId && user.ssoId !== googleAccount.sub) {
+        return res.status(409).json({
+          message: "This email is already linked to another Google account",
+        });
+      }
+
+      if (user) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            ssoId: googleAccount.sub,
+            isActive: true,
+          },
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            name: googleAccount.name?.trim() || email.split("@")[0],
+            email,
+            ssoId: googleAccount.sub,
+            isActive: true,
+          },
+        });
+      }
+    } else if (!user.isActive) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isActive: true },
+      });
+    }
+
+    return this.createLoginSession(user, req, res);
+  }
+
+  private async createLoginSession(
+    user: { id: number; email: string },
+    req: Request,
+    res: Response,
+  ) {
     const tokens = this.generateTokens(user);
 
     await this.prisma.session.create({
@@ -48,8 +136,10 @@ export class authServices {
         expiredAt: new Date(Date.now() + 7 * 86400000),
       },
     });
+
     return res.status(200).json({
       accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
   }
 
@@ -84,9 +174,15 @@ export class authServices {
   }
 
   async logout(refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException("Refresh token is required");
+    }
+
     await this.prisma.session.deleteMany({
       where: { refreshToken },
     });
+
+    return { message: "Logged out successfully" };
   }
 
   async registerUser(req: Request, res: Response) {
@@ -182,5 +278,19 @@ export class authServices {
     } catch (error) {
       return error;
     }
+  }
+  async getCurrentUserLogin(accesstoken: string, Res: Response) {
+    const userData = this.jwt.verify(accesstoken);
+    const user = await this.prisma.user.findFirst({
+      where: { id: userData.sub },
+    });
+    if (user) {
+      return Res.status(200).json({
+        user: user,
+      });
+    }
+    return Res.status(404).json({
+      message: "User not found",
+    });
   }
 }

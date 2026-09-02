@@ -31,6 +31,16 @@ model Session {
   user User @relation(fields: [userId], references: [id])
 }
 
+model Project {
+   id           String   @id @default(uuid())
+   name         String
+   createdAtv   DateTime @default(now())
+   modifiedDate DateTime @default(now())
+   employeeIds   String 
+   isDeleted    Boolean?
+
+}
+
 
 
 
