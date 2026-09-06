@@ -118,6 +118,17 @@ export class authController {
     return this.authService.logout(body.refreshToken);
   }
 
+  @Post("check-token")
+  @HttpCode(200)
+  checkAccessToken(
+    @Body() body: { accessToken: string; refreshToken: string },
+  ) {
+    return this.authService.checkAccessToken(
+      body.accessToken,
+      body.refreshToken,
+    );
+  }
+
   @Post("resgisterUser")
   registerUser(@Req() req: Request, @Res() res: Response) {
     console.log("dsadsad", req);

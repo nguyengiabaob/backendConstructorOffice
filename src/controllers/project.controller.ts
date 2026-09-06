@@ -24,7 +24,7 @@ export class ProjectController {
   }
 
   @Get("getProject/:id")
-  async getProject(@Param("id", ParseIntPipe) id: number) {
+  async getProject(@Param("id", ParseIntPipe) id: string) {
     return this.projectService.getProject(id);
   }
 
