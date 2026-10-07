@@ -34,18 +34,25 @@ model Session {
 }
 
 model Project {
-  id             Int      @id @default(autoincrement())
-  name           String
-  description    String?
-  participantIds Json     @default("[]")
-  managerIds     Json     @default("[]")
-  createdBy      Int
-  modifiedBy     Int?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  creator        User     @relation("ProjectCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
-  modifier       User?    @relation("ProjectModifiedBy", fields: [modifiedBy], references: [id], onDelete: SetNull)
-  isDelete       Boolean  @default(false)
+  id                Int      @id @default(autoincrement())
+  name              String
+  projectCode       String   @unique
+  location          String
+  status            String   @default("PLANNING")
+  progress          Int      @default(0)
+  budget            Decimal  @default(0) @db.Decimal(18, 2)
+  expectedPersonnel Int      @default(1)
+  imageUrl          String?  @db.Text
+  description       String?
+  participantIds    Json     @default("[]")
+  managerIds        Json     @default("[]")
+  createdBy         Int
+  modifiedBy        Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  creator           User     @relation("ProjectCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  modifier          User?    @relation("ProjectModifiedBy", fields: [modifiedBy], references: [id], onDelete: SetNull)
+  isDelete          Boolean  @default(false)
 
   @@index([createdBy])
   @@index([modifiedBy])

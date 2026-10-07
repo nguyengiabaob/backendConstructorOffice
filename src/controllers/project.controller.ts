@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Get,
+  Headers,
   Inject,
   Injectable,
   Param,
@@ -8,7 +10,10 @@ import {
   Post,
 } from "@nestjs/common";
 
-import { IprojectService } from "../IService/IProjectService";
+import {
+  CreateProjectData,
+  IprojectService,
+} from "../IService/IProjectService";
 import { PROJECT_SERVICE } from "../TokenServices/Project.Token";
 
 @Controller("project")
@@ -29,8 +34,14 @@ export class ProjectController {
   }
 
   @Post("createProject")
-  async createProject(data: any) {
-    return this.projectService.createProject(data);
+  async createProject(
+    @Body() data: CreateProjectData,
+    @Headers("authorization") authorization?: string,
+  ) {
+    return this.projectService.createProject(
+      data,
+      authorization?.replace(/^Bearer\s+/i, ""),
+    );
   }
   @Post("updateProject")
   async updateProject(data: any) {
