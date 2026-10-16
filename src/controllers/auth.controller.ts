@@ -131,8 +131,6 @@ export class authController {
 
   @Post("resgisterUser")
   registerUser(@Req() req: Request, @Res() res: Response) {
-    console.log("dsadsad", req);
-
     return this.authService.registerUser(req, res);
   }
   @Post("setupPassword")

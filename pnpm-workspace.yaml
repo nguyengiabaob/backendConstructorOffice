@@ -1,0 +1,8 @@
+allowBuilds:
+  '@firebase/util': false
+  '@prisma/client': false
+  '@prisma/engines': false
+  '@scarf/scarf': false
+  bcrypt: false
+  prisma: false
+  protobufjs: false
