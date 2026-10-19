@@ -9,10 +9,18 @@ export interface CreateProjectData {
   imageUrl?: string;
 }
 
+export interface ProjectListData {
+  data: CreateProjectData[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface IprojectService {
-  getProjects(): Promise<any[]>;
-  getProject(id: string): Promise<any>;
+  getProjects(search?: string, page?: number, pageSize?: number): Promise<ProjectListData>;
+  getProject(id: number): Promise<CreateProjectData>;
   createProject(data: CreateProjectData, accessToken?: string): Promise<any>;
-  updateProject(data: any): Promise<any>;
+  updateProject(id: number, data: CreateProjectData): Promise<any>;
   deleteProject(id: string): Promise<void>;
 }

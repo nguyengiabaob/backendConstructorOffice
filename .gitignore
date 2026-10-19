@@ -23,4 +23,5 @@ git rm --cached .env
 *.njsproj
 *.sln
 *.sw?
+*.check.ts
 

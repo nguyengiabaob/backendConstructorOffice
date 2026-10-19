@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Headers,
   Inject,
@@ -8,6 +9,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
 } from "@nestjs/common";
 
 import {
@@ -24,12 +26,16 @@ export class ProjectController {
     private projectService: IprojectService,
   ) {}
   @Get("getProjects")
-  async getProjects() {
-    return this.projectService.getProjects();
+  async getProjects(
+    @Query("search") search?: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query("pageSize", new DefaultValuePipe(10), ParseIntPipe) pageSize: number = 10,
+  ) {
+    return this.projectService.getProjects(search, page, pageSize);
   }
 
   @Get("getProject/:id")
-  async getProject(@Param("id", ParseIntPipe) id: string) {
+  async getProject(@Param("id", ParseIntPipe) id: number) {
     return this.projectService.getProject(id);
   }
 
@@ -43,12 +49,15 @@ export class ProjectController {
       authorization?.replace(/^Bearer\s+/i, ""),
     );
   }
-  @Post("updateProject")
-  async updateProject(data: any) {
-    return this.projectService.updateProject(data);
+  @Post("updateProject/:id")
+  async updateProject(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() data: CreateProjectData,
+  ) {
+    return this.projectService.updateProject(id, data);
   }
-  @Post("deleteProject")
-  async deleteProject(id: string) {
+  @Post("deleteProject/:id")
+  async deleteProject(@Param("id") id: string) {
     return this.projectService.deleteProject(id);
   }
 }

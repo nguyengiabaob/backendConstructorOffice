@@ -19,6 +19,8 @@ model User {
   setupTokenExpires BigInt?
   sessions          Session[]
   createdProjects   Project[] @relation("ProjectCreatedBy")
+  reportedTasks     Task[] @relation("TaskReporter")
+  assignedTasks     Task[] @relation("TaskAssignee")
   modifiedProjects  Project[] @relation("ProjectModifiedBy")
 }
 
@@ -34,6 +36,7 @@ model Session {
 }
 
 model Project {
+  tasks             Task[]
   id                Int      @id @default(autoincrement())
   name              String
   projectCode       String   @unique
@@ -56,4 +59,56 @@ model Project {
 
   @@index([createdBy])
   @@index([modifiedBy])
+}
+
+enum TaskType {
+  TASK
+  STORY
+  BUG
+  EPIC
+  SUBTASK
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOWEST
+  LOW
+  MEDIUM
+  HIGH
+  HIGHEST
+}
+
+model Task {
+  id           Int @id @default(autoincrement())
+  key          String @unique @db.VarChar(255)
+  projectId    Int
+  summary      String
+  description  String @db.Text
+  type         TaskType @default(TASK)
+  status       TaskStatus @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  assigneeId   Int?
+  reporterId   Int
+  parentTaskId Int?
+  labels       Json @default("[]")
+  dueDate      DateTime?
+  storyPoints  Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project @relation(fields: [projectId], references: [id])
+  reporter     User @relation("TaskReporter", fields: [reporterId], references: [id])
+  assignee     User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  parent       Task? @relation("TaskChildren", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children     Task[] @relation("TaskChildren")
+
+  @@index([projectId])
+  @@index([reporterId])
+  @@index([assigneeId])
+  @@index([parentTaskId])
 }
