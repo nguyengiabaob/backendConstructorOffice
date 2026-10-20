@@ -1,11 +1,14 @@
 import "dotenv/config";
 import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
+import { join } from "node:path";
 import { AppModule } from "./src/App.module";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 const startServer = async () => {
   try {
     console.log("APP STARTING...");
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    app.useStaticAssets(join(process.cwd(), "uploads"), { prefix: "/uploads/" });
     // Start the server
     app.setGlobalPrefix("api");
 

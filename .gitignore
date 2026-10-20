@@ -24,4 +24,5 @@ git rm --cached .env
 *.sln
 *.sw?
 *.check.ts
+uploads/
 

@@ -39,6 +39,7 @@
     "start:prod": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "check:project": "ts-node src/services/project.service.check.ts",
+    "check:file": "ts-node src/services/File/File.Service.check.ts",
     "check:prisma-executor": "ts-node src/services/prisma-executor.service.check.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
