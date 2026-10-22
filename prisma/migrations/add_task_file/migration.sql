@@ -1,4 +1,3 @@
-
 -- CreateTable
 CREATE TABLE `File` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
