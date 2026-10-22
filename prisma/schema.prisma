@@ -89,7 +89,7 @@ enum TaskPriority {
 model File {
   id           Int      @id @default(autoincrement())
   key          String   @unique @db.VarChar(255)
-  projectId    Int
+  projectId    Int?
   taskId       Int?
   fileName     String   @db.VarChar(191)
   originalName String?  @db.VarChar(191)
@@ -100,7 +100,7 @@ model File {
   uploadedBy   Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  project      Project  @relation(fields: [projectId], references: [id])
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   task         Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   uploader     User     @relation("FileUploader", fields: [uploadedBy], references: [id])
 

@@ -72,7 +72,7 @@ export class FileController {
         : Number(value);
     return this.fileService.createFile(
       {
-        projectId: Number(body.projectId),
+        projectId: num(body.projectId),
         taskId: num(body.taskId),
         folder: body.folder,
         fileName: body.fileName,

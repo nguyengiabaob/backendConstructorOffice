@@ -8,7 +8,14 @@ import { JwtService } from "@nestjs/jwt";
 import { File, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, normalize as normalizePath, relative, sep } from "node:path";
+import {
+  basename,
+  isAbsolute,
+  join,
+  normalize as normalizePath,
+  relative,
+  sep,
+} from "node:path";
 import { PrismaService } from "../../../shared/Database/prisma.service";
 import {
   CreateFileData,
@@ -77,12 +84,18 @@ export class FileService implements IFileService {
         data.size < 0)
     )
       throw new BadRequestException("Size must be a non-negative number");
-    if (data.url !== undefined && data.url !== null && !data.url.startsWith("/uploads/")) {
+    if (
+      data.url !== undefined &&
+      data.url !== null &&
+      !data.url.startsWith("/uploads/")
+    ) {
       try {
         const protocol = new URL(data.url).protocol;
         if (protocol !== "http:" && protocol !== "https:") throw new Error();
       } catch {
-        throw new BadRequestException("URL must be a valid http(s) URL or an /uploads/ path");
+        throw new BadRequestException(
+          "URL must be a valid http(s) URL or an /uploads/ path",
+        );
       }
     }
     if (
@@ -121,11 +134,12 @@ export class FileService implements IFileService {
       throw new BadRequestException("Search must be a string");
     const search = query.search?.trim() ?? "";
     const where: Prisma.FileWhereInput = {
-      ...(query.projectId != null ? { projectId: query.projectId } : {}),
+      ...(query.projectId != null
+        ? { projectId: query.projectId, project: { isDelete: false } }
+        : {}),
       ...(query.taskId != null ? { taskId: query.taskId } : {}),
       ...(query.uploadedBy != null ? { uploadedBy: query.uploadedBy } : {}),
       ...(query.mimeType ? { mimeType: query.mimeType } : {}),
-      project: { isDelete: false },
       ...(search
         ? {
             OR: [
@@ -155,7 +169,7 @@ export class FileService implements IFileService {
 
   async getFile(id: number): Promise<FileData> {
     const file = await this.prisma.file.findFirst({
-      where: { id: this.id(id), project: { isDelete: false } },
+      where: { id: this.id(id) },
     });
     if (!file) throw new NotFoundException("File not found");
     return this.toData(file);
@@ -176,7 +190,15 @@ export class FileService implements IFileService {
       normalized === ".." ||
       normalized.startsWith("../") ||
       isAbsolute(normalized) ||
-      normalized.split("/").some((segment) => !segment || segment === "." || segment === ".." || /[<>:"|?*\0]/.test(segment))
+      normalized
+        .split("/")
+        .some(
+          (segment) =>
+            !segment ||
+            segment === "." ||
+            segment === ".." ||
+            /[<>:"|?*\0]/.test(segment),
+        )
     )
       throw new BadRequestException("Invalid folder path");
     const dir = join(UPLOAD_DIR, normalized);
@@ -200,7 +222,9 @@ export class FileService implements IFileService {
     const from = this.folderDir(oldName, true);
     const to = this.folderDir(newName, true);
     if (to === from || to.startsWith(from + sep))
-      throw new BadRequestException("Target folder must not be the source folder or inside it");
+      throw new BadRequestException(
+        "Target folder must not be the source folder or inside it",
+      );
     try {
       await stat(from);
     } catch {
@@ -237,7 +261,7 @@ export class FileService implements IFileService {
     const fileName =
       values.fileName ?? file?.originalname?.trim().slice(0, 191);
     if (!fileName) throw new BadRequestException("File name is required");
-    const projectId = this.id(data.projectId);
+    const projectId = data.projectId != null ? this.id(data.projectId) : null;
     let uploadedBy: number;
     try {
       if (!accessToken) throw new Error();
@@ -250,7 +274,11 @@ export class FileService implements IFileService {
     // Save the bytes first so the stored url always points at a real file.
     const dir = this.folderDir(data.folder);
     const storedName = file
-      ? `${randomUUID()}-${basename(file.originalname || "file").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100) || "file"}`
+      ? `${randomUUID()}-${
+          basename(file.originalname || "file")
+            .replace(/[^a-zA-Z0-9._-]/g, "_")
+            .slice(0, 100) || "file"
+        }`
       : undefined;
     if (file && storedName) {
       await mkdir(dir, { recursive: true });
@@ -258,19 +286,8 @@ export class FileService implements IFileService {
     }
     try {
       return await this.prisma.$transaction(async (db) => {
-        const project = await db.project.findUnique({
-          where: { id: projectId, isDelete: false },
-        });
-        if (!project) throw new NotFoundException("Project not found");
         if (!(await db.user.findUnique({ where: { id: uploadedBy } })))
           throw new UnauthorizedException("Uploader not found");
-        if (values.taskId != null) {
-          const task = await db.task.findUnique({
-            where: { id: values.taskId },
-          });
-          if (!task || task.projectId !== projectId)
-            throw new BadRequestException("Task must belong to same project");
-        }
         return this.toData(
           await db.file.create({
             data: {
@@ -280,17 +297,19 @@ export class FileService implements IFileService {
                 values.originalName ?? file?.originalname?.slice(0, 191),
               mimeType: values.mimeType ?? file?.mimetype,
               size: values.size ?? file?.size,
-              url: storedName ? `${this.folderPublicPath(dir)}/${storedName}` : values.url,
+              url: storedName
+                ? `${this.folderPublicPath(dir)}/${storedName}`
+                : values.url,
               key: randomUUID(),
-              projectId,
+              projectId: projectId ?? null,
+              taskId: values.taskId ?? null,
               uploadedBy,
             },
           }),
         );
       });
     } catch (error) {
-      if (storedName)
-        await unlink(join(dir, storedName)).catch(() => {});
+      if (storedName) await unlink(join(dir, storedName)).catch(() => {});
       throw error;
     }
   }
@@ -300,10 +319,10 @@ export class FileService implements IFileService {
     const values = this.normalize(data);
     return this.prisma.$transaction(async (db) => {
       const file = await db.file.findFirst({
-        where: { id, project: { isDelete: false } },
+        where: { id },
       });
       if (!file) throw new NotFoundException("File not found");
-      if (values.taskId != null) {
+      if (values.taskId != null && file.projectId != null) {
         const task = await db.task.findUnique({ where: { id: values.taskId } });
         if (!task || task.projectId !== file.projectId)
           throw new BadRequestException("Task must belong to same project");

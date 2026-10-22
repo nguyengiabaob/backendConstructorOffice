@@ -1,5 +1,5 @@
 export interface CreateFileData {
-  projectId: number;
+  projectId?: number | null;
   taskId?: number | null;
   folder?: string;
   fileName?: string;
@@ -24,7 +24,7 @@ export type UpdateFileData = Partial<Omit<CreateFileData, "projectId">>;
 export interface FileData {
   id: number;
   key: string;
-  projectId: number;
+  projectId: number | null;
   taskId: number | null;
   fileName: string;
   originalName: string | null;
