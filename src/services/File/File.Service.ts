@@ -288,6 +288,27 @@ export class FileService implements IFileService {
       return await this.prisma.$transaction(async (db) => {
         if (!(await db.user.findUnique({ where: { id: uploadedBy } })))
           throw new UnauthorizedException("Uploader not found");
+
+        const savedProjectId =
+          projectId != null
+            ? (
+                await db.project.findUnique({
+                  where: { id: projectId, isDelete: false },
+                  select: { id: true },
+                })
+              )?.id ?? null
+            : null;
+
+        const savedTaskId =
+          values.taskId != null
+            ? (
+                await db.task.findUnique({
+                  where: { id: values.taskId },
+                  select: { id: true },
+                })
+              )?.id ?? null
+            : null;
+
         return this.toData(
           await db.file.create({
             data: {
@@ -301,8 +322,8 @@ export class FileService implements IFileService {
                 ? `${this.folderPublicPath(dir)}/${storedName}`
                 : values.url,
               key: randomUUID(),
-              projectId: projectId ?? null,
-              taskId: values.taskId ?? null,
+              projectId: savedProjectId,
+              taskId: savedTaskId,
               uploadedBy,
             },
           }),
