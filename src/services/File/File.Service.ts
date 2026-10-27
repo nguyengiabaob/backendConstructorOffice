@@ -7,9 +7,10 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { File, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { mkdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import {
   basename,
+  dirname,
   isAbsolute,
   join,
   normalize as normalizePath,
@@ -19,10 +20,12 @@ import {
 import { PrismaService } from "../../../shared/Database/prisma.service";
 import {
   CreateFileData,
+  CreateFolderData,
   FileData,
   FileListData,
   FileListQuery,
   FolderData,
+  FolderListQuery,
   IFileService,
   UpdateFileData,
   UploadedFileData,
@@ -44,17 +47,50 @@ export class FileService implements IFileService {
     return value;
   }
 
-  private toData(file: File): FileData {
+  private authUserId(accessToken?: string): number {
+    if (!accessToken)
+      throw new UnauthorizedException("Invalid or missing access token");
+    try {
+      return this.id(Number(this.jwt.verify<{ sub: number }>(accessToken).sub));
+    } catch {
+      throw new UnauthorizedException("Invalid or missing access token");
+    }
+  }
+
+  private toData(file: File & { folderId?: number | null }): FileData {
     return {
       ...file,
+      folderId: file.folderId ?? null,
       createdAt: file.createdAt.toISOString(),
       updatedAt: file.updatedAt.toISOString(),
     };
   }
 
-  private normalize(data: UpdateFileData) {
-    if (!data || typeof data !== "object" || Array.isArray(data))
+  private toFolderData(folder: any): FolderData {
+    return {
+      id: folder.id,
+      name: folder.name,
+      path: folder.path,
+      parentId: folder.parentId ?? null,
+      projectId: folder.projectId ?? null,
+      taskId: folder.taskId ?? null,
+      isDeleted: Boolean(folder.isDeleted),
+      createdBy: folder.createdBy,
+      createdAt:
+        folder.createdAt instanceof Date
+          ? folder.createdAt.toISOString()
+          : String(folder.createdAt),
+      updatedAt:
+        folder.updatedAt instanceof Date
+          ? folder.updatedAt.toISOString()
+          : String(folder.updatedAt),
+    };
+  }
+
+  private normalize(data: UpdateFileData & { folderId?: number | null }) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
       throw new BadRequestException("File data is required");
+    }
     if (
       data.fileName !== undefined &&
       (typeof data.fileName !== "string" ||
@@ -65,46 +101,34 @@ export class FileService implements IFileService {
         "File name must contain 1 to 191 characters",
       );
     }
-    if (
-      data.originalName !== undefined &&
-      data.originalName !== null &&
-      typeof data.originalName !== "string"
-    )
+    if (data.originalName != null && typeof data.originalName !== "string") {
       throw new BadRequestException("Original name must be a string");
-    if (
-      data.mimeType !== undefined &&
-      data.mimeType !== null &&
-      typeof data.mimeType !== "string"
-    )
+    }
+    if (data.mimeType != null && typeof data.mimeType !== "string") {
       throw new BadRequestException("Mime type must be a string");
+    }
     if (
-      data.size !== undefined &&
+      data.size != null &&
       (typeof data.size !== "number" ||
         !Number.isFinite(data.size) ||
         data.size < 0)
-    )
-      throw new BadRequestException("Size must be a non-negative number");
-    if (
-      data.url !== undefined &&
-      data.url !== null &&
-      !data.url.startsWith("/uploads/")
     ) {
-      try {
-        const protocol = new URL(data.url).protocol;
-        if (protocol !== "http:" && protocol !== "https:") throw new Error();
-      } catch {
-        throw new BadRequestException(
-          "URL must be a valid http(s) URL or an /uploads/ path",
-        );
-      }
+      throw new BadRequestException("Size must be a non-negative number");
     }
     if (
-      data.description !== undefined &&
-      data.description !== null &&
-      typeof data.description !== "string"
-    )
+      data.url != null &&
+      !data.url.startsWith("/uploads/") &&
+      !/^https?:\/\//i.test(data.url)
+    ) {
+      throw new BadRequestException(
+        "URL must be a valid http(s) URL or an /uploads/ path",
+      );
+    }
+    if (data.description != null && typeof data.description !== "string") {
       throw new BadRequestException("Description must be a string");
+    }
     if (data.taskId != null) this.id(data.taskId);
+    if (data.folderId != null) this.id(data.folderId);
     return {
       fileName: data.fileName?.trim(),
       originalName: data.originalName,
@@ -113,7 +137,50 @@ export class FileService implements IFileService {
       url: data.url,
       description: data.description,
       taskId: data.taskId,
+      folderId: data.folderId,
     };
+  }
+
+  private folderDir(folder?: string, required = false): string {
+    const name = folder?.trim();
+    if (!name) {
+      if (required) throw new BadRequestException("Folder name is required");
+      return UPLOAD_DIR;
+    }
+    const normalized = normalizePath(name).replace(/\\/g, "/");
+    if (
+      normalized === "." ||
+      normalized === ".." ||
+      normalized.startsWith("../") ||
+      isAbsolute(normalized) ||
+      normalized
+        .split("/")
+        .some((s) => !s || s === "." || s === ".." || /[<>:"|?*\0]/.test(s))
+    ) {
+      throw new BadRequestException("Invalid folder path");
+    }
+    const dir = join(UPLOAD_DIR, normalized);
+    if (!dir.startsWith(UPLOAD_DIR + sep))
+      throw new BadRequestException("Invalid folder path");
+    return dir;
+  }
+
+  private folderPublicPath(dir: string): string {
+    const rel = relative(UPLOAD_DIR, dir).split(sep).filter(Boolean).join("/");
+    return rel ? `/uploads/${rel}` : "/uploads";
+  }
+
+  private async findFolder(idOrName: number | string, db: any = this.prisma) {
+    const isNum =
+      typeof idOrName === "number" ||
+      (typeof idOrName === "string" && /^\d+$/.test(idOrName));
+    const folder = await db.folder.findFirst({
+      where: isNum
+        ? { id: Number(idOrName), isDeleted: false }
+        : { name: String(idOrName), isDeleted: false },
+    });
+    if (!folder) throw new NotFoundException("Folder not found");
+    return folder;
   }
 
   async getFiles(query: FileListQuery = {}): Promise<FileListData> {
@@ -125,19 +192,23 @@ export class FileService implements IFileService {
       pageSize < 1 ||
       pageSize > 100 ||
       !Number.isSafeInteger((page - 1) * pageSize)
-    )
+    ) {
       throw new BadRequestException("Invalid pagination");
+    }
     if (query.projectId != null) this.id(query.projectId);
     if (query.taskId != null) this.id(query.taskId);
+    if (query.folderId != null) this.id(query.folderId);
     if (query.uploadedBy != null) this.id(query.uploadedBy);
-    if (query.search !== undefined && typeof query.search !== "string")
+    if (query.search !== undefined && typeof query.search !== "string") {
       throw new BadRequestException("Search must be a string");
+    }
     const search = query.search?.trim() ?? "";
     const where: Prisma.FileWhereInput = {
       ...(query.projectId != null
         ? { projectId: query.projectId, project: { isDelete: false } }
         : {}),
       ...(query.taskId != null ? { taskId: query.taskId } : {}),
+      ...(query.folderId != null ? { folderId: query.folderId } : {}),
       ...(query.uploadedBy != null ? { uploadedBy: query.uploadedBy } : {}),
       ...(query.mimeType ? { mimeType: query.mimeType } : {}),
       ...(search
@@ -175,79 +246,137 @@ export class FileService implements IFileService {
     return this.toData(file);
   }
 
-  // Resolves a user-supplied folder to a directory inside uploads/.
-  private folderDir(folder?: string, required = false): string {
-    if (folder !== undefined && folder !== null && typeof folder !== "string")
-      throw new BadRequestException("Folder must be a string");
-    const name = folder?.trim() ?? "";
-    if (!name) {
-      if (required) throw new BadRequestException("Folder name is required");
-      return UPLOAD_DIR;
-    }
-    const normalized = normalizePath(name).replace(/\\/g, "/");
-    if (
-      normalized === "." ||
-      normalized === ".." ||
-      normalized.startsWith("../") ||
-      isAbsolute(normalized) ||
-      normalized
-        .split("/")
-        .some(
-          (segment) =>
-            !segment ||
-            segment === "." ||
-            segment === ".." ||
-            /[<>:"|?*\0]/.test(segment),
-        )
-    )
-      throw new BadRequestException("Invalid folder path");
-    const dir = join(UPLOAD_DIR, normalized);
-    if (dir !== UPLOAD_DIR && !dir.startsWith(UPLOAD_DIR + sep))
-      throw new BadRequestException("Invalid folder path");
-    return dir;
-  }
-
-  private folderPublicPath(dir: string): string {
-    const rel = relative(UPLOAD_DIR, dir).split(sep).filter(Boolean).join("/");
-    return rel ? `/uploads/${rel}` : "/uploads";
-  }
-
-  async createFolder(name: string): Promise<FolderData> {
-    const dir = this.folderDir(name, true);
-    await mkdir(dir, { recursive: true });
-    return { path: this.folderPublicPath(dir) };
-  }
-
-  async updateFolder(oldName: string, newName: string): Promise<FolderData> {
-    const from = this.folderDir(oldName, true);
-    const to = this.folderDir(newName, true);
-    if (to === from || to.startsWith(from + sep))
+  async createFolder(
+    input: string | CreateFolderData,
+    accessToken?: string,
+  ): Promise<FolderData> {
+    const data: CreateFolderData =
+      typeof input === "string" ? { name: input } : input;
+    if (!data?.name?.trim() || data.name.trim().length > 191) {
       throw new BadRequestException(
-        "Target folder must not be the source folder or inside it",
+        "Folder name must contain 1 to 191 characters",
       );
-    try {
-      await stat(from);
-    } catch {
-      throw new NotFoundException("Folder not found");
     }
-    try {
-      await stat(to);
-      throw new BadRequestException("Target folder already exists");
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-    }
-    await rename(from, to);
-    return { path: this.folderPublicPath(to) };
+    const folderName = data.name.trim().replace(/[<>:"|?*\0/\\]/g, "_");
+    const createdBy = accessToken ? this.authUserId(accessToken) : 1;
+
+    return (this.prisma as any).$transaction(async (db: any) => {
+      const parent =
+        data.parentId != null
+          ? await db.folder.findFirst({
+              where: { id: this.id(data.parentId), isDeleted: false },
+            })
+          : null;
+      if (data.parentId != null && !parent)
+        throw new NotFoundException("Parent folder not found");
+
+      let projectId =
+        data.projectId != null
+          ? this.id(data.projectId)
+          : (parent?.projectId ?? null);
+      let taskId =
+        data.taskId != null ? this.id(data.taskId) : (parent?.taskId ?? null);
+
+      if (projectId != null) {
+        projectId =
+          (
+            await db.project.findUnique({
+              where: { id: projectId, isDelete: false },
+              select: { id: true },
+            })
+          )?.id ?? null;
+      }
+      if (taskId != null) {
+        taskId =
+          (
+            await db.task.findUnique({
+              where: { id: taskId },
+              select: { id: true },
+            })
+          )?.id ?? null;
+      }
+
+      const relPath = parent
+        ? join(parent.path.replace(/^\/uploads\/?/, ""), folderName).replace(
+            /\\/g,
+            "/",
+          )
+        : taskId != null
+          ? join("tasks", String(taskId), folderName).replace(/\\/g, "/")
+          : projectId != null
+            ? join("projects", String(projectId), folderName).replace(
+                /\\/g,
+                "/",
+              )
+            : folderName;
+
+      const fullDir = join(UPLOAD_DIR, relPath);
+      await mkdir(fullDir, { recursive: true });
+
+      const created = await db.folder.create({
+        data: {
+          name: folderName,
+          path: `/uploads/${relPath}`,
+          parentId: parent?.id ?? null,
+          projectId,
+          taskId,
+          createdBy,
+        },
+      });
+      return this.toFolderData(created);
+    });
   }
 
-  async deleteFolder(name: string): Promise<void> {
-    const dir = this.folderDir(name, true);
-    try {
-      await stat(dir);
-    } catch {
-      throw new NotFoundException("Folder not found");
-    }
-    await rm(dir, { recursive: true, force: true });
+  async getFolders(query: FolderListQuery = {}): Promise<FolderData[]> {
+    const where: any = {
+      isDeleted: false,
+      ...(query.projectId != null ? { projectId: query.projectId } : {}),
+      ...(query.taskId != null ? { taskId: query.taskId } : {}),
+      ...(query.parentId !== undefined ? { parentId: query.parentId } : {}),
+    };
+    const folders = await (this.prisma as any).folder.findMany({
+      where,
+      orderBy: { id: "desc" },
+    });
+    return folders.map((f: any) => this.toFolderData(f));
+  }
+
+  async updateFolder(
+    idOrOldName: number | string,
+    newName: string,
+  ): Promise<FolderData> {
+    const name = newName?.trim();
+    if (!name || name.length > 191)
+      throw new BadRequestException(
+        "Folder name must contain 1 to 191 characters",
+      );
+    const sanitized = name.replace(/[<>:"|?*\0/\\]/g, "_");
+
+    const folder = await this.findFolder(idOrOldName);
+    const oldRel = folder.path.replace(/^\/uploads\/?/, "");
+    const parentRel = dirname(oldRel);
+    const newRel =
+      parentRel && parentRel !== "."
+        ? join(parentRel, sanitized).replace(/\\/g, "/")
+        : sanitized;
+
+    const oldDir = join(UPLOAD_DIR, oldRel);
+    const newDir = join(UPLOAD_DIR, newRel);
+    if (oldDir !== newDir) await rename(oldDir, newDir).catch(() => {});
+
+    const updated = await (this.prisma as any).folder.update({
+      where: { id: folder.id },
+      data: { name: sanitized, path: `/uploads/${newRel}` },
+    });
+    return this.toFolderData(updated);
+  }
+
+  async deleteFolder(input: number | string): Promise<void> {
+    const folder = await this.findFolder(input);
+    await (this.prisma as any).folder.update({
+      where: { id: folder.id },
+      data: { isDeleted: true },
+    });
   }
 
   async createFile(
@@ -261,18 +390,9 @@ export class FileService implements IFileService {
     const fileName =
       values.fileName ?? file?.originalname?.trim().slice(0, 191);
     if (!fileName) throw new BadRequestException("File name is required");
+    const uploadedBy = this.authUserId(accessToken);
     const projectId = data.projectId != null ? this.id(data.projectId) : null;
-    let uploadedBy: number;
-    try {
-      if (!accessToken) throw new Error();
-      uploadedBy = this.id(
-        Number(this.jwt.verify<{ sub: number }>(accessToken).sub),
-      );
-    } catch {
-      throw new UnauthorizedException("Invalid or missing access token");
-    }
-    // Save the bytes first so the stored url always points at a real file.
-    const dir = this.folderDir(data.folder);
+    const baseDir = this.folderDir(data.folder);
     const storedName = file
       ? `${randomUUID()}-${
           basename(file.originalname || "file")
@@ -280,34 +400,55 @@ export class FileService implements IFileService {
             .slice(0, 100) || "file"
         }`
       : undefined;
-    if (file && storedName) {
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, storedName), file.buffer);
-    }
-    try {
-      return await this.prisma.$transaction(async (db) => {
-        if (!(await db.user.findUnique({ where: { id: uploadedBy } })))
-          throw new UnauthorizedException("Uploader not found");
 
-        const savedProjectId =
+    let targetDir = baseDir;
+
+    try {
+      return await (this.prisma as any).$transaction(async (db: any) => {
+        if (!(await db.user.findUnique({ where: { id: uploadedBy } }))) {
+          throw new UnauthorizedException("Uploader not found");
+        }
+
+        let savedProjectId =
           projectId != null
-            ? (
+            ? ((
                 await db.project.findUnique({
                   where: { id: projectId, isDelete: false },
                   select: { id: true },
                 })
-              )?.id ?? null
+              )?.id ?? null)
             : null;
-
-        const savedTaskId =
+        let savedTaskId =
           values.taskId != null
-            ? (
+            ? ((
                 await db.task.findUnique({
                   where: { id: values.taskId },
                   select: { id: true },
                 })
-              )?.id ?? null
+              )?.id ?? null)
             : null;
+        let savedFolderId: number | null = null;
+
+        if (values.folderId != null) {
+          const folder = await db.folder.findFirst({
+            where: { id: values.folderId, isDeleted: false },
+          });
+          if (folder) {
+            savedFolderId = folder.id;
+            if (!data.folder)
+              targetDir = join(
+                UPLOAD_DIR,
+                folder.path.replace(/^\/uploads\/?/, ""),
+              );
+            savedProjectId ??= folder.projectId;
+            savedTaskId ??= folder.taskId;
+          }
+        }
+
+        if (file && storedName) {
+          await mkdir(targetDir, { recursive: true });
+          await writeFile(join(targetDir, storedName), file.buffer);
+        }
 
         return this.toData(
           await db.file.create({
@@ -319,18 +460,19 @@ export class FileService implements IFileService {
               mimeType: values.mimeType ?? file?.mimetype,
               size: values.size ?? file?.size,
               url: storedName
-                ? `${this.folderPublicPath(dir)}/${storedName}`
+                ? `${this.folderPublicPath(targetDir)}/${storedName}`
                 : values.url,
               key: randomUUID(),
               projectId: savedProjectId,
               taskId: savedTaskId,
+              folderId: savedFolderId,
               uploadedBy,
             },
           }),
         );
       });
     } catch (error) {
-      if (storedName) await unlink(join(dir, storedName)).catch(() => {});
+      if (storedName) await unlink(join(targetDir, storedName)).catch(() => {});
       throw error;
     }
   }
@@ -339,14 +481,13 @@ export class FileService implements IFileService {
     this.id(id);
     const values = this.normalize(data);
     return this.prisma.$transaction(async (db) => {
-      const file = await db.file.findFirst({
-        where: { id },
-      });
+      const file = await db.file.findFirst({ where: { id } });
       if (!file) throw new NotFoundException("File not found");
       if (values.taskId != null && file.projectId != null) {
         const task = await db.task.findUnique({ where: { id: values.taskId } });
-        if (!task || task.projectId !== file.projectId)
+        if (!task || task.projectId !== file.projectId) {
           throw new BadRequestException("Task must belong to same project");
+        }
       }
       return this.toData(await db.file.update({ where: { id }, data: values }));
     });
@@ -354,15 +495,14 @@ export class FileService implements IFileService {
 
   async deleteFile(id: number): Promise<void> {
     await this.getFile(id);
-    try {
-      await this.prisma.file.delete({ where: { id } });
-    } catch (error) {
+    await this.prisma.file.delete({ where: { id } }).catch((error) => {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2025"
-      )
+      ) {
         throw new NotFoundException("File not found");
+      }
       throw error;
-    }
+    });
   }
 }

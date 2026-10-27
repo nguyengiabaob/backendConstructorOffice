@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from "@nestjs/common";
 import {
   CreateTaskData,
@@ -20,8 +21,10 @@ import {
   UpdateTaskData,
 } from "../IService/ITaskService";
 import { TASK_SERVICE } from "../TokenServices/Project.Token";
+import { GuardMiddleware } from "../middlewares/guard.middleware";
 
 @Controller("task")
+@UseGuards(GuardMiddleware)
 @Injectable()
 export class TaskController {
   constructor(@Inject(TASK_SERVICE) private taskService: ITaskService) {}

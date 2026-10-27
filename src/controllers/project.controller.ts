@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from "@nestjs/common";
 
 import {
@@ -17,8 +18,10 @@ import {
   IprojectService,
 } from "../IService/IProjectService";
 import { PROJECT_SERVICE } from "../TokenServices/Project.Token";
+import { GuardMiddleware } from "../middlewares/guard.middleware";
 
 @Controller("project")
+@UseGuards(GuardMiddleware)
 @Injectable()
 export class ProjectController {
   constructor(
@@ -29,7 +32,8 @@ export class ProjectController {
   async getProjects(
     @Query("search") search?: string,
     @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
-    @Query("pageSize", new DefaultValuePipe(10), ParseIntPipe) pageSize: number = 10,
+    @Query("pageSize", new DefaultValuePipe(10), ParseIntPipe)
+    pageSize: number = 10,
   ) {
     return this.projectService.getProjects(search, page, pageSize);
   }

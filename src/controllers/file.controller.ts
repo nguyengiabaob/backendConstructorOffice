@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
@@ -20,8 +21,10 @@ import {
   UploadedFileData,
 } from "../IService/IFileService";
 import { FILE_SERVICE } from "../TokenServices/Project.Token";
+import { GuardMiddleware } from "../middlewares/guard.middleware";
 
 @Controller("file")
+@UseGuards(GuardMiddleware)
 @Injectable()
 export class FileController {
   constructor(@Inject(FILE_SERVICE) private fileService: IFileService) {}
@@ -32,6 +35,8 @@ export class FileController {
     projectId?: number,
     @Query("taskId", new ParseIntPipe({ optional: true }))
     taskId?: number,
+    @Query("folderId", new ParseIntPipe({ optional: true }))
+    folderId?: number,
     @Query("search") search?: string,
     @Query("mimeType") mimeType?: string,
     @Query("uploadedBy", new ParseIntPipe({ optional: true }))
@@ -43,6 +48,7 @@ export class FileController {
     return this.fileService.getFiles({
       projectId,
       taskId,
+      folderId,
       search,
       mimeType,
       uploadedBy,
@@ -74,6 +80,7 @@ export class FileController {
       {
         projectId: num(body.projectId),
         taskId: num(body.taskId),
+        folderId: num(body.folderId),
         folder: body.folder,
         fileName: body.fileName,
         originalName: body.originalName,
@@ -95,19 +102,59 @@ export class FileController {
     return this.fileService.updateFile(id, data);
   }
 
+  @Get("getFolders")
+  async getFolders(
+    @Query("projectId", new ParseIntPipe({ optional: true }))
+    projectId?: number,
+    @Query("taskId", new ParseIntPipe({ optional: true }))
+    taskId?: number,
+    @Query("parentId", new ParseIntPipe({ optional: true }))
+    parentId?: number,
+  ) {
+    return this.fileService.getFolders({ projectId, taskId, parentId });
+  }
+
   @Post("createFolder")
-  async createFolder(@Body() body: { name: string }) {
-    return this.fileService.createFolder(body.name);
+  async createFolder(
+    @Body()
+    body: {
+      name: string;
+      parentId?: number;
+      projectId?: number;
+      taskId?: number;
+    },
+    @Headers("authorization") authorization?: string,
+  ) {
+    const num = (v: unknown) =>
+      v === undefined || v === null || v === "" ? undefined : Number(v);
+    return this.fileService.createFolder(
+      {
+        name: body.name,
+        parentId: num(body.parentId),
+        projectId: num(body.projectId),
+        taskId: num(body.taskId),
+      },
+      authorization?.replace(/^Bearer\s+/i, ""),
+    );
   }
 
   @Post("updateFolder")
-  async updateFolder(@Body() body: { oldName: string; newName: string }) {
-    return this.fileService.updateFolder(body.oldName, body.newName);
+  async updateFolder(
+    @Body() body: { id?: number; oldName?: string; newName: string },
+  ) {
+    const target = body.id ?? body.oldName;
+    return this.fileService.updateFolder(target as any, body.newName);
   }
 
   @Post("deleteFolder")
-  async deleteFolder(@Body() body: { name: string }) {
-    return this.fileService.deleteFolder(body.name);
+  async deleteFolder(@Body() body: { id?: number; name?: string }) {
+    const target = body.id ?? body.name;
+    return this.fileService.deleteFolder(target as any);
+  }
+
+  @Post("deleteFolder/:id")
+  async deleteFolderById(@Param("id", ParseIntPipe) id: number) {
+    return this.fileService.deleteFolder(id);
   }
 
   @Post("deleteFile/:id")

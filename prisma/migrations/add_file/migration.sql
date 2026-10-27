@@ -3,7 +3,7 @@
 CREATE TABLE `File` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `key` VARCHAR(255) NOT NULL,
-    `projectId` INTEGER NULL,
+    `projectId` INTEGER NOT NULL,
     `taskId` INTEGER NULL,
     `fileName` VARCHAR(191) NOT NULL,
     `originalName` VARCHAR(191) NULL,
@@ -23,7 +23,7 @@ CREATE TABLE `File` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
-ALTER TABLE `File` ADD CONSTRAINT `File_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `Project`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `File` ADD CONSTRAINT `File_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `Project`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `File` ADD CONSTRAINT `File_taskId_fkey` FOREIGN KEY (`taskId`) REFERENCES `Task`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

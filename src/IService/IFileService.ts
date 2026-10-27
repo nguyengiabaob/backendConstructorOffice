@@ -1,6 +1,7 @@
 export interface CreateFileData {
   projectId?: number | null;
   taskId?: number | null;
+  folderId?: number | null;
   folder?: string;
   fileName?: string;
   originalName?: string;
@@ -26,6 +27,7 @@ export interface FileData {
   key: string;
   projectId: number | null;
   taskId: number | null;
+  folderId: number | null;
   fileName: string;
   originalName: string | null;
   mimeType: string | null;
@@ -41,6 +43,7 @@ export interface FileData {
 export interface FileListQuery {
   projectId?: number;
   taskId?: number;
+  folderId?: number;
   search?: string;
   mimeType?: string;
   uploadedBy?: number;
@@ -56,8 +59,30 @@ export interface FileListData {
   totalPages: number;
 }
 
+export interface CreateFolderData {
+  name: string;
+  parentId?: number | null;
+  projectId?: number | null;
+  taskId?: number | null;
+}
+
 export interface FolderData {
+  id: number;
+  name: string;
   path: string;
+  parentId: number | null;
+  projectId: number | null;
+  taskId: number | null;
+  isDeleted: boolean;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FolderListQuery {
+  projectId?: number;
+  taskId?: number;
+  parentId?: number | null;
 }
 
 export interface IFileService {
@@ -66,7 +91,8 @@ export interface IFileService {
   createFile(data: CreateFileData, accessToken?: string, file?: UploadedFileData): Promise<FileData>;
   updateFile(id: number, data: UpdateFileData): Promise<FileData>;
   deleteFile(id: number): Promise<void>;
-  createFolder(name: string): Promise<FolderData>;
-  updateFolder(oldName: string, newName: string): Promise<FolderData>;
-  deleteFolder(name: string): Promise<void>;
+  createFolder(data: CreateFolderData, accessToken?: string): Promise<FolderData>;
+  getFolders(query?: FolderListQuery): Promise<FolderData[]>;
+  updateFolder(id: number, newName: string): Promise<FolderData>;
+  deleteFolder(id: number): Promise<void>;
 }
