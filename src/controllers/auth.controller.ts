@@ -151,4 +151,8 @@ export class authController {
     }
     return this.authService.getCurrentUserLogin(accessToken, res);
   }
+  @Post("refresh")
+  refreshAccessToken(@Body() body: any) {
+    return this.authService.refresh(body.refreshToken);
+  }
 }
