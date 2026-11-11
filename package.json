@@ -42,6 +42,7 @@
     "start:dev": "nest start --watch",
     "check:project": "ts-node src/services/project.service.check.ts",
     "check:file": "ts-node src/services/File/File.Service.check.ts",
+    "check:language": "ts-node src/services/Language/Language.Service.check.ts",
     "check:guard": "ts-node src/middlewares/guard.middleware.check.ts",
     "check:prisma-executor": "ts-node src/services/prisma-executor.service.check.ts",
     "prisma:generate": "prisma generate",

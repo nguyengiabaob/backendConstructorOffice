@@ -169,3 +169,29 @@ model Task {
   @@index([assigneeId])
   @@index([parentTaskId])
 }
+
+model Language {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  code      String   @db.VarChar(10)
+  name      String   @db.VarChar(100)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model Translation {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  lang      String   @db.VarChar(10)
+  key       String   @db.VarChar(191)
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, lang, key])
+  @@index([companyId, lang])
+}
