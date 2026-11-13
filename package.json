@@ -36,7 +36,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "build": "prisma generate && nest build",
+    "build": "npx prisma generate && npx prisma migrate deploy && npx nest build",
     "start": "node dist/src/main.js",
     "start:prod": "node dist/src/main.js",
     "start:dev": "nest start --watch",
